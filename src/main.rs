@@ -18,6 +18,9 @@ struct Args {
 
     #[argh(switch, description = "list bookmarks", short = 'l')]
     list: bool,
+
+    #[argh(option, description = "append to bookmark before opening", short = 'a')]
+    append: Option<String>,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -58,8 +61,12 @@ fn main() -> eyre::Result<()> {
 
         let bookmark = conf
             .bookmarks
-            .get(&title)
+            .get_mut(&title)
             .ok_or_eyre(format!("bookmark '{}' does not exist", &title))?;
+
+        if let Some(a) = args.append {
+            bookmark.push_str(&a);
+        }
 
         #[cfg(target_os = "linux")]
         std::process::Command::new("xdg-open")
