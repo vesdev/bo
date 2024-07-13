@@ -3,12 +3,14 @@
     nixpkgs.url = "nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
     fenix.url = "github:nix-community/fenix/monthly";
+    crane.url = "github:ipetkov/crane";
   };
 
   outputs =
     inputs@{ self
     , flake-parts
     , fenix
+    , crane
     , nixpkgs
     , ...
     }:
@@ -33,16 +35,30 @@
 
           buildInputs = with pkgs; [ ];
 
-          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
+          craneLib = (crane.mkLib pkgs).overrideToolchain
+            fenix.packages.${system}.minimal.toolchain;
+          src = craneLib.cleanCargoSource (craneLib.path ./.);
+          cargoArtifacts = craneLib.buildDepsOnly {
+            inherit buildInputs nativeBuildInputs src;
+          };
+
+          bo = craneLib.buildPackage {
+            inherit cargoArtifacts buildInputs nativeBuildInputs src;
+          };
 
           devPackages = [
             fenix.packages.${system}.complete.toolchain
           ];
         in
         {
+          packages = {
+            inherit bo;
+            default = bo;
+          };
+
           devShells = {
             default = pkgs.mkShell {
-              inherit LD_LIBRARY_PATH buildInputs nativeBuildInputs;
+              inherit buildInputs nativeBuildInputs;
               packages = devPackages;
             };
           };
