@@ -1,19 +1,23 @@
-use std::collections::HashMap;
-
 use argh::FromArgs;
 use eyre::OptionExt;
 use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, path::PathBuf};
 
 #[derive(FromArgs)]
-/// Simple input capture
+/// Manage arbitrary bookmarks
 struct Args {
+    #[argh(positional)]
     /// title of a bookmark
-    #[argh(positional)]
-    title: String,
+    title: Option<String>,
 
-    /// url of a bookmark to add
-    #[argh(positional)]
-    bookmark: Option<String>,
+    #[argh(switch, description = "remove bookmark", short = 'r')]
+    remove: bool,
+
+    #[argh(option, description = "bookmark to set", short = 's')]
+    set: Option<String>,
+
+    #[argh(switch, description = "list bookmarks", short = 'l')]
+    list: bool,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -34,39 +38,64 @@ fn main() -> eyre::Result<()> {
         Config::default()
     };
 
-    if let Some(bookmark) = args.bookmark {
-        conf.bookmarks.insert(args.title, bookmark);
-
-        if !dir.exists() {
-            std::fs::create_dir(dir.parent().unwrap())?;
+    if args.list {
+        println!("My Bookmarks:");
+        for bookmark in &conf.bookmarks {
+            println!("{} {}", bookmark.0, bookmark.1);
         }
-
-        std::fs::write(dir, toml::to_string(&conf)?)?;
-        return Ok(());
     }
 
-    let bookmark = conf
-        .bookmarks
-        .get(&args.title)
-        .ok_or_eyre(format!("bookmark '{}' does not exist", &args.title))?;
+    if let Some(title) = args.title {
+        if let Some(bookmark) = args.set {
+            conf.bookmarks.insert(title, bookmark);
+            return write(&dir, &conf);
+        }
 
-    #[cfg(target_os = "linux")]
-    std::process::Command::new("xdg-open")
-        .arg(bookmark)
-        .output()
-        .expect("failed to open bookmark");
+        if args.remove {
+            conf.bookmarks.remove(&title);
+            return write(&dir, &conf);
+        }
 
-    #[cfg(target_os = "macos")]
-    std::process::Command::new("open")
-        .arg(bookmark)
-        .output()
-        .expect("failed to open bookmark");
+        let bookmark = conf
+            .bookmarks
+            .get(&title)
+            .ok_or_eyre(format!("bookmark '{}' does not exist", &title))?;
 
-    #[cfg(target_os = "windows")]
-    std::process::Command::new("start")
-        .arg(bookmark)
-        .output()
-        .expect("failed to open bookmark");
+        #[cfg(target_os = "linux")]
+        std::process::Command::new("xdg-open")
+            .arg(bookmark)
+            .output()
+            .expect("failed to open bookmark");
 
+        #[cfg(target_os = "macos")]
+        std::process::Command::new("open")
+            .arg(bookmark)
+            .output()
+            .expect("failed to open bookmark");
+
+        #[cfg(target_os = "windows")]
+        std::process::Command::new("start")
+            .arg(bookmark)
+            .output()
+            .expect("failed to open bookmark");
+    } else if !args.list {
+        println!(
+            r#"
+Required positional arguments not provided:
+    title
+
+Run bo --help for more information"#
+        );
+    }
+
+    Ok(())
+}
+
+fn write(dir: &PathBuf, conf: &Config) -> eyre::Result<()> {
+    if !dir.exists() {
+        std::fs::create_dir(dir.parent().unwrap())?;
+    }
+
+    std::fs::write(dir, toml::to_string(&conf)?)?;
     Ok(())
 }
