@@ -31,9 +31,12 @@ struct Config {
 fn main() -> eyre::Result<()> {
     let args: Args = argh::from_env();
 
-    let dir = dirs::config_dir()
-        .ok_or_eyre("fonfiguration directory was not found")?
-        .join("bo/config.toml");
+    let Some(mut dir) = dirs::config_dir() else {
+        println!("configuration directory was not found");
+        return Ok(());
+    };
+
+    dir = dir.join("bo/config.toml");
 
     let mut conf: Config = if let Ok(s) = std::fs::read_to_string(&dir) {
         toml::from_str(&s)?
@@ -59,10 +62,10 @@ fn main() -> eyre::Result<()> {
             return write(&dir, &conf);
         }
 
-        let bookmark = conf
-            .bookmarks
-            .get_mut(&title)
-            .ok_or_eyre(format!("bookmark '{}' does not exist", &title))?;
+        let Some(bookmark) = conf.bookmarks.get_mut(&title) else {
+            println!("bookmark '{}' does not exist", &title);
+            return Ok(());
+        };
 
         if let Some(a) = args.append {
             bookmark.push_str(&a);
