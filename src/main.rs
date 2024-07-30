@@ -51,7 +51,7 @@ fn main() -> eyre::Result<()> {
         }
     }
 
-    if let Some(title) = args.title {
+    if let Some(mut title) = args.title {
         if let Some(bookmark) = args.set {
             conf.bookmarks.insert(title, bookmark);
             return write(&dir, &conf);
@@ -62,9 +62,9 @@ fn main() -> eyre::Result<()> {
             return write(&dir, &conf);
         }
 
-        let Some(bookmark) = conf.bookmarks.get_mut(&title) else {
-            println!("bookmark '{}' does not exist", &title);
-            return Ok(());
+        let bookmark = match conf.bookmarks.get_mut(&title) {
+            Some(b) => b,
+            None => &mut ("https://".to_owned() + &title),
         };
 
         if let Some(a) = args.append {
